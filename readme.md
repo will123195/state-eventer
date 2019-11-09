@@ -26,7 +26,7 @@ const listeners = [
 // remove listener
 listeners[0].off()
 
-// add a new value to the state and notify listeners
+// add/modify value and notify listeners
 state.set('books.1.title', 'War and Peace')
 
 // retrieve values from the state
