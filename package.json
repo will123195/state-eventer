@@ -1,0 +1,16 @@
+{
+  "name": "state-eventer",
+  "version": "1.0.0",
+  "description": "Get/set state and listen for changes",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "lodash.get": "^4.4.2",
+    "lodash.set": "^4.3.2",
+    "lodash.unset": "^4.5.2"
+  }
+}
