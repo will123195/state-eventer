@@ -18,8 +18,13 @@ const state = new StateEventer()
 state.get() // {}
 
 // listen for state changes at specific paths
-state.on('books', console.log)
-state.on('books.1', console.log)
+const listeners = [
+  state.on('books', console.log),
+  state.on('books.1', console.log)
+]
+
+// remove listener
+listeners[0].off()
 
 // add a new value to the state and notify listeners
 state.set('books.1.title', 'War and Peace')
@@ -35,18 +40,25 @@ state.unset('books.1.title')
 state.get('books.1.title') // undefined
 
 // reset the entire state and notify listeners
-state.set({}) 
+state.set({})
 state.get() // {}
+
 ```
 
 ## Methods
 
-#### `on( path, listener )`
+### StateEventer
+
+#### `on( path, listenerFn )`
 - `path` (String|Array) the path to listen for changes
-- `listener` (Function) the function to call when the value changes
+- `listenerFn` (Function) the function to call when the value changes
+
+Returns `Listener` (see below)
 
 #### `get( path )`
-- `path` (String|Array) retrieves the value at this path
+- `path` (String|Array) the path of the desired value
+
+Returns the value at the given path
 
 #### `set( path, value )`
 - `path` (String|Array) the path at which to set the value
@@ -57,6 +69,10 @@ state.get() // {}
 
 #### `unset( path )`
 - `path` (Object) removes this path from the state
+
+### Listener
+
+#### `off()` removes the listener
 
 ## License
 
