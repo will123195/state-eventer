@@ -25,8 +25,8 @@ state.on('books.1', console.log)
 state.set('books.1.title', 'War and Peace')
 
 // retrieve values from the state
-state.get()                // { books: { 0: { title: 'War and Peace' } } }
-state.get('books')         // { 0: { title: 'War and Peace' } }
+state.get()                // { books: { 1: { title: 'War and Peace' } } }
+state.get('books')         // { 1: { title: 'War and Peace' } }
 state.get('books.1')       // { title: 'War and Peace' }
 state.get('books.1.title') // 'War and Peace'
 
