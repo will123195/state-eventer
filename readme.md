@@ -21,7 +21,7 @@ state.get() // {}
 state.on('books', console.log)
 state.on('books.1', console.log)
 
-// add a new value to the state
+// add a new value to the state and notify listeners
 state.set('books.1.title', 'War and Peace')
 
 // retrieve values from the state
@@ -30,11 +30,11 @@ state.get('books')         // { 1: { title: 'War and Peace' } }
 state.get('books.1')       // { title: 'War and Peace' }
 state.get('books.1.title') // 'War and Peace'
 
-// remove values from the state
+// remove values from the state and notify listeners
 state.unset('books.1.title')
 state.get('books.1.title') // undefined
 
-// reset the entire state
+// reset the entire state and notify listeners
 state.set({}) 
 state.get() // {}
 ```
