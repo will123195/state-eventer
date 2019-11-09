@@ -12,10 +12,12 @@ function handle(event) {
   counts[event.path] += 1
 }
 
-state.on('a', handle)
-state.on('a.b', handle)
-state.on('a.b', handle)
-state.on('a.b.c', handle)
+const listeners = [
+  state.on('a', handle),
+  state.on('a.b', handle),
+  state.on('a.b', handle),
+  state.on('a.b.c', handle)
+]
 
 state.set('a.b.c', 123)
 state.set('a.b.c', 123)
@@ -38,5 +40,9 @@ assert.deepEqual(state.get(), { x: 5 })
 
 assert.deepEqual(counts, { 'a.b.c': 2, a: 2, 'a.b': 4, 'y': 1 })
 assert.deepEqual(events[4].path, 'a.b.c')
+
+assert.ok(state.listeners['a.b'].length, 2)
+listeners[2].off()
+assert.ok(state.listeners['a.b'].length, 1)
 
 console.log('PASS')

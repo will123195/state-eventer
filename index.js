@@ -27,7 +27,7 @@ class StateEventer {
       const newValue = _.get(value, path)
       if (oldValue === newValue) return
       this.listeners[path].forEach(listener => {
-        listener({
+        listener.fn({
           path,
           value: newValue,
           oldValue
@@ -46,7 +46,7 @@ class StateEventer {
       const newChildValue = _.get(value, relativeChildPath)
       if (oldChildValue === newChildValue) return
       this.listeners[childPath].forEach(listener => {
-        listener({
+        listener.fn({
           path: childPath,
           value: newChildValue,
           oldValue: oldChildValue
@@ -61,7 +61,7 @@ class StateEventer {
     const pathString = pathToString(path)
     if (Array.isArray(this.listeners[pathString])) {
       this.listeners[pathString].forEach(listener => {
-        listener({
+        listener.fn({
           path: pathString,
           value,
           oldValue
@@ -72,8 +72,21 @@ class StateEventer {
 
   on(path, fn) {
     const pathString = pathToString(path)
+    const id = Math.random()
+    const off = () => {
+      this.removeListener(pathString, id)
+    }
+    const listener = { id, fn, off }
     this.listeners[pathString] = this.listeners[pathString] || []
-    this.listeners[pathString].push(fn)
+    this.listeners[pathString].push(listener)
+    return listener
+  }
+
+  removeListener(path, id) {
+    const i = this.listeners[path].findIndex(l => l.id === id)
+    // TODO: this.listeners[path] should be an object instead of array to
+    // prevent possible race condition causing wrong listener to be removed
+    this.listeners[path].splice(i, 1)
   }
 
   set(path, value) {
