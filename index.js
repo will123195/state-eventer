@@ -1,3 +1,4 @@
+const deepEqual = require('fast-deep-equal')
 const get = require('lodash.get')
 const set = require('lodash.set')
 const unset = require('lodash.unset')
@@ -14,6 +15,7 @@ class StateEventer {
   constructor() {
     this.state = {}
     this.listeners = {}
+    this.enableParentEvents = true
   }
 
   get(path) {
@@ -67,25 +69,33 @@ class StateEventer {
 
   notifyParentPathListeners(path, value) {
     const notifications = []
-    const pathString = pathToString(path)
-    const pathArray = pathString.split('.')
-    pathArray.forEach((leaf, i) => {
-      const ancestorPath = pathArray.slice(0, i + 1).join('.')
-      Object.keys(this.listeners).forEach(listenerPath => {
+    let pathString = pathToString(path)
+    const pathArray = pathString.split('.').slice(0, -1)
+    pathString = pathArray.join('.')
+    if (!pathString) return
+    Object.keys(this.listeners).forEach(listenerPath => {
+      pathArray.some((leaf, i) => {
+        const ancestorPath = pathArray.slice(0, i + 1).join('.')
         if (listenerPath !== ancestorPath) return
-        // the new value isn't set yet, but this reference will update
-        const newValue = _.get(this.state, ancestorPath)
-        const oldValue = JSON.parse(JSON.stringify(newValue))
+        const currentValue = _.get(this.state, ancestorPath)
+        const oldValue = currentValue ? JSON.parse(JSON.stringify(currentValue)) : currentValue
+        // TODO make this faster
+        const futureState = JSON.parse(JSON.stringify(this.state))
+        _.set(futureState, path, value)
+        const newValue = _.get(futureState, listenerPath)
+        if (deepEqual(newValue, oldValue)) return
         this.listeners[ancestorPath].forEach(listener => {
+          const param = {
+            path: ancestorPath,
+            value: newValue,
+            oldValue
+          }
           notifications.push({
             fn: listener.fn,
-            param: {
-              path: ancestorPath,
-              value: newValue,
-              oldValue
-            }
+            param
           })
         })
+        return true
       })
     })
     return notifications
@@ -141,10 +151,11 @@ class StateEventer {
       Array.prototype.push.apply(notifications, this.notifyAllPathListeners(val))
       this.state = val
     } else {
-      const pathNotifications = this.notifyPathListeners(path, value)
-      Array.prototype.push.apply(notifications, pathNotifications)
+      Array.prototype.push.apply(notifications, this.notifyPathListeners(path, value))
       Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
-      Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
+      if (this.enableParentEvents) {
+        Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
+      }
       _.set(this.state, path, value)
     }
     notifications.forEach(notification => {
@@ -154,10 +165,11 @@ class StateEventer {
 
   unset(path) {
     const notifications = []
-    const pathNotifications = this.notifyPathListeners(path)
-    Array.prototype.push.apply(notifications, pathNotifications)
+    Array.prototype.push.apply(notifications, this.notifyPathListeners(path))
     Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
-    Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
+    if (this.enableParentEvents) {
+      Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
+    }
     _.unset(this.state, path)
     notifications.forEach(notification => {
       notification.fn(notification.param)
