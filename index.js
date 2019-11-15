@@ -22,21 +22,27 @@ class StateEventer {
   }
 
   notifyAllPathListeners(value) {
+    const notifications = []
     Object.keys(this.listeners).forEach(path => {
       const oldValue = _.get(this.state, path)
       const newValue = _.get(value, path)
       if (oldValue === newValue) return
       this.listeners[path].forEach(listener => {
-        listener.fn({
-          path,
-          value: newValue,
-          oldValue
+        notifications.push({
+          fn: listener.fn,
+          param: {
+            path,
+            value: newValue,
+            oldValue
+          }
         })
       })
     })
+    return notifications
   }
 
   notifyChildPathListeners(path, value) {
+    const notifications = []
     const pathString = pathToString(path)
     Object.keys(this.listeners).forEach(childPath => {
       const parentPath = `${pathString}.`
@@ -46,28 +52,63 @@ class StateEventer {
       const newChildValue = _.get(value, relativeChildPath)
       if (oldChildValue === newChildValue) return
       this.listeners[childPath].forEach(listener => {
-        listener.fn({
-          path: childPath,
-          value: newChildValue,
-          oldValue: oldChildValue
+        notifications.push({
+          fn: listener.fn,
+          param: {
+            path: childPath,
+            value: newChildValue,
+            oldValue: oldChildValue
+          }
         })
       })
     })
+    return notifications
+  }
+
+  notifyParentPathListeners(path, value) {
+    const notifications = []
+    const pathString = pathToString(path)
+    const pathArray = pathString.split('.')
+    pathArray.forEach((leaf, i) => {
+      const ancestorPath = pathArray.slice(0, i + 1).join('.')
+      Object.keys(this.listeners).forEach(listenerPath => {
+        if (listenerPath !== ancestorPath) return
+        // the new value isn't set yet, but this reference will update
+        const newValue = _.get(this.state, ancestorPath)
+        const oldValue = JSON.parse(JSON.stringify(newValue))
+        this.listeners[ancestorPath].forEach(listener => {
+          notifications.push({
+            fn: listener.fn,
+            param: {
+              path: ancestorPath,
+              value: newValue,
+              oldValue
+            }
+          })
+        })
+      })
+    })
+    return notifications
   }
 
   notifyPathListeners(path, value) {
+    const notifications = []
     const oldValue = _.get(this.state, path)
     if (value === oldValue) return
     const pathString = pathToString(path)
     if (Array.isArray(this.listeners[pathString])) {
       this.listeners[pathString].forEach(listener => {
-        listener.fn({
-          path: pathString,
-          value,
-          oldValue
+        notifications.push({
+          fn: listener.fn,
+          param: {
+            path: pathString,
+            value,
+            oldValue
+          }
         })
       })
     }
+    return notifications
   }
 
   on(path, fn) {
@@ -87,31 +128,40 @@ class StateEventer {
     // TODO: this.listeners[path] should be an object instead of array to
     // prevent possible race condition causing wrong listener to be removed
     this.listeners[path].splice(i, 1)
+    if (this.listeners[path].length === 0) {
+      delete this.listeners[path]
+    }
   }
 
   set(path, value) {
+    const notifications = []
     // if we're setting a new state at the root
     if (!!path && typeof path === 'object') {
       const val = path
-      this.notifyAllPathListeners(val)
+      Array.prototype.push.apply(notifications, this.notifyAllPathListeners(val))
       this.state = val
-      return
+    } else {
+      const pathNotifications = this.notifyPathListeners(path, value)
+      Array.prototype.push.apply(notifications, pathNotifications)
+      Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
+      Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
+      _.set(this.state, path, value)
     }
-
-    this.notifyPathListeners(path, value)
-    this.notifyChildPathListeners(path, value)
-
-    // finally change the state
-    // TODO: having this last could cause race condition
-    // (events emit before the value is actually changed)
-    // but for now it's easier to emit the "oldValue" by doing this last
-    _.set(this.state, path, value)
+    notifications.forEach(notification => {
+      notification.fn(notification.param)
+    })
   }
 
   unset(path) {
-    this.notifyPathListeners(path)
-    this.notifyChildPathListeners(path)
+    const notifications = []
+    const pathNotifications = this.notifyPathListeners(path)
+    Array.prototype.push.apply(notifications, pathNotifications)
+    Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
+    Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
     _.unset(this.state, path)
+    notifications.forEach(notification => {
+      notification.fn(notification.param)
+    })
   }
 }
 
