@@ -19,7 +19,7 @@ const listeners = [
   state.on('a.b.c', handle)  //
 ]
 
-state.set('a.b.c', 123)
+state.set(['a', 'b', 'c'], 123)
 // console.log(`state.set('a.b.c', 123)`, counts)
 state.set('a.b.c', 123)
 // console.log(`state.set('a.b.c', 123)`, counts)

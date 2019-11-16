@@ -146,7 +146,7 @@ class StateEventer {
   set(path, value) {
     const notifications = []
     // if we're setting a new state at the root
-    if (!!path && typeof path === 'object') {
+    if (!!path && typeof path === 'object' && !Array.isArray(path)) {
       const val = path
       Array.prototype.push.apply(notifications, this.notifyAllPathListeners(val))
       this.state = val
