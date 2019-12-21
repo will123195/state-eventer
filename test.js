@@ -49,8 +49,10 @@ assert.deepEqual(state.get(), { x: 5 })
 assert.deepEqual(counts, { 'a.b.c': 2, a: 4, 'a.b': 8, 'y': 1 })
 assert.deepEqual(events[10].path, 'a.b.c')
 
-assert.ok(state.listeners['a.b'].length, 2)
+assert.equal(state.listeners['a.b'].length, 2)
 listeners[2].off()
-assert.ok(state.listeners['a.b'].length, 1)
+assert.equal(state.listeners['a.b'].length, 1)
+
+assert.equal(state.get('not-found', 12345), 12345)
 
 console.log('PASS')

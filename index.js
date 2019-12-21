@@ -18,9 +18,9 @@ class StateEventer {
     this.enableParentEvents = true
   }
 
-  get(path) {
+  get(path, defaultValue) {
     if (typeof path === 'undefined') return this.state
-    return _.get(this.state, path)
+    return _.get(this.state, path, defaultValue)
   }
 
   notifyAllPathListeners(value) {
