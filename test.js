@@ -78,4 +78,8 @@ state.unset('a.b.c')
 const b3 = state.get('a.b')
 assert(b2 === b3)
 
+// transform function
+state.update('a.b.c', n => n + 1, 5)
+assert.equal(state.get('a.b.c'), 6)
+
 console.log('PASS')

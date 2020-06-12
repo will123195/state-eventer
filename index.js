@@ -152,6 +152,12 @@ class StateEventer {
     })
   }
 
+  update(path, transformFn, defaultValue) {
+    const oldValue = this.get(path, defaultValue)
+    const newValue = transformFn(oldValue)
+    this.set(path, newValue)
+  }
+
   set(path, value) {
     const notifications = []
     // if we're setting a new state at the root

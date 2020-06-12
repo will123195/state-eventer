@@ -43,6 +43,8 @@ state.get('books.1.title') // undefined
 state.set({})
 state.get() // {}
 
+// transform
+state.update('counter', n => n + 1, 0) // 1
 ```
 
 ## Methods
@@ -69,6 +71,14 @@ Returns the value at the given path
 
 #### `unset( path )`
 - `path` (Object) removes this path from the state
+
+#### `update( path, transformFn, [defaultValue] )`
+- `path` (String|Array) the path at which to set the value
+- `transformFn` (Function) transform the current value to a new value
+- `defaultValue` the default value to pass into the transform function if the value at the given path is undefined
+  ```js
+  set('counter', n => n + 1, 0)
+  ```
 
 ### Listener
 
