@@ -15,7 +15,6 @@ class StateEventer {
   constructor() {
     this.state = {}
     this.listeners = {}
-    this.enableParentEvents = true
   }
 
   get(path, defaultValue) {
@@ -72,7 +71,7 @@ class StateEventer {
     let pathString = pathToString(path)
     const pathArray = pathString.split('.').slice(0, -1)
     pathString = pathArray.join('.')
-    if (!pathString) return
+    if (!pathString) return []
     Object.keys(this.listeners).forEach(listenerPath => {
       pathArray.some((leaf, i) => {
         const ancestorPath = pathArray.slice(0, i + 1).join('.')
@@ -81,7 +80,8 @@ class StateEventer {
         const oldValue = currentValue ? JSON.parse(JSON.stringify(currentValue)) : currentValue
         // TODO make this faster
         const futureState = JSON.parse(JSON.stringify(this.state))
-        _.set(futureState, path, value)
+        const action = (value !== undefined) ? 'set' : 'unset'
+        _[action](futureState, path, value)
         const newValue = _.get(futureState, listenerPath)
         if (deepEqual(newValue, oldValue)) return
         this.listeners[ancestorPath].forEach(listener => {
@@ -143,6 +143,15 @@ class StateEventer {
     }
   }
 
+  // give each ancestor in the path a new reference
+  shallowCopyAncestors(paths = []) {
+    paths.forEach(path => {
+      const obj = _.get(this.state, path)
+      const value = Array.isArray(obj) ? [...obj] : {...obj}
+      _.set(this.state, path, value)
+    })
+  }
+
   set(path, value) {
     const notifications = []
     // if we're setting a new state at the root
@@ -153,10 +162,11 @@ class StateEventer {
     } else {
       Array.prototype.push.apply(notifications, this.notifyPathListeners(path, value))
       Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
-      if (this.enableParentEvents) {
-        Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
-      }
+      const ancestorNotifications = this.notifyParentPathListeners(path, value)
+      Array.prototype.push.apply(notifications, ancestorNotifications)
       _.set(this.state, path, value)
+      const ancestorPaths = ancestorNotifications.map(a => a.param.path)
+      this.shallowCopyAncestors(ancestorPaths)
     }
     notifications.forEach(notification => {
       notification.fn(notification.param)
@@ -167,10 +177,11 @@ class StateEventer {
     const notifications = []
     Array.prototype.push.apply(notifications, this.notifyPathListeners(path))
     Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
-    if (this.enableParentEvents) {
-      Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
-    }
+    const ancestorNotifications = this.notifyParentPathListeners(path)
+    Array.prototype.push.apply(notifications, ancestorNotifications)
     _.unset(this.state, path)
+    const ancestorPaths = ancestorNotifications.map(a => a.param.path)
+    this.shallowCopyAncestors(ancestorPaths)
     notifications.forEach(notification => {
       notification.fn(notification.param)
     })
