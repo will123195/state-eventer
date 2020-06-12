@@ -4,6 +4,14 @@ const set = require('lodash.set')
 const unset = require('lodash.unset')
 const _ = { get, set, unset }
 
+const listenersKey = '$$_listeners'
+
+let lastTime = Date.now()
+function elapsed(label) {
+  console.log(label, Date.now() - lastTime, 'ms')
+  lastTime = Date.now()
+}
+
 function pathToString(path) {
   if (typeof path === 'string') return path
   if (Array.isArray(path)) return path.join('.')
@@ -14,8 +22,7 @@ class StateEventer {
 
   constructor() {
     this.state = {}
-    this.listeners = {}
-    this.enableParentEvents = true
+    this.listenerTree = {}
   }
 
   get(path, defaultValue) {
@@ -23,157 +30,122 @@ class StateEventer {
     return _.get(this.state, path, defaultValue)
   }
 
-  notifyAllPathListeners(value) {
-    const notifications = []
-    Object.keys(this.listeners).forEach(path => {
-      const oldValue = _.get(this.state, path)
-      const newValue = _.get(value, path)
-      if (oldValue === newValue) return
-      this.listeners[path].forEach(listener => {
-        notifications.push({
-          fn: listener.fn,
-          param: {
-            path,
-            value: newValue,
-            oldValue
-          }
-        })
-      })
-    })
-    return notifications
-  }
-
-  notifyChildPathListeners(path, value) {
-    const notifications = []
-    const pathString = pathToString(path)
-    Object.keys(this.listeners).forEach(childPath => {
-      const parentPath = `${pathString}.`
-      if (!childPath.startsWith(parentPath)) return
-      const oldChildValue = _.get(this.state, childPath)
-      const relativeChildPath = childPath.substr(parentPath.length)
-      const newChildValue = _.get(value, relativeChildPath)
-      if (oldChildValue === newChildValue) return
-      this.listeners[childPath].forEach(listener => {
-        notifications.push({
-          fn: listener.fn,
-          param: {
-            path: childPath,
-            value: newChildValue,
-            oldValue: oldChildValue
-          }
-        })
-      })
-    })
-    return notifications
-  }
-
-  notifyParentPathListeners(path, value) {
-    const notifications = []
-    let pathString = pathToString(path)
-    const pathArray = pathString.split('.').slice(0, -1)
-    pathString = pathArray.join('.')
-    if (!pathString) return
-    Object.keys(this.listeners).forEach(listenerPath => {
-      pathArray.some((leaf, i) => {
-        const ancestorPath = pathArray.slice(0, i + 1).join('.')
-        if (listenerPath !== ancestorPath) return
-        const currentValue = _.get(this.state, ancestorPath)
-        const oldValue = currentValue ? JSON.parse(JSON.stringify(currentValue)) : currentValue
-        // TODO make this faster
-        const futureState = JSON.parse(JSON.stringify(this.state))
-        _.set(futureState, path, value)
-        const newValue = _.get(futureState, listenerPath)
-        if (deepEqual(newValue, oldValue)) return
-        this.listeners[ancestorPath].forEach(listener => {
-          const param = {
-            path: ancestorPath,
-            value: newValue,
-            oldValue
-          }
-          notifications.push({
-            fn: listener.fn,
-            param
-          })
-        })
-        return true
-      })
-    })
-    return notifications
-  }
-
-  notifyPathListeners(path, value) {
-    const notifications = []
-    const oldValue = _.get(this.state, path)
-    if (value === oldValue) return
-    const pathString = pathToString(path)
-    if (Array.isArray(this.listeners[pathString])) {
-      this.listeners[pathString].forEach(listener => {
-        notifications.push({
-          fn: listener.fn,
-          param: {
-            path: pathString,
-            value,
-            oldValue
-          }
-        })
-      })
-    }
-    return notifications
-  }
-
   on(path, fn) {
     const pathString = pathToString(path)
-    const id = Math.random()
+    const id = `${Math.random()}`.substr(2)
     const off = () => {
       this.removeListener(pathString, id)
     }
-    const listener = { id, fn, off }
-    this.listeners[pathString] = this.listeners[pathString] || []
-    this.listeners[pathString].push(listener)
+    const listener = { fn, off }
+    _.set(this.listenerTree, `${pathString}.${listenersKey}.${id}`, listener)
     return listener
   }
 
   removeListener(path, id) {
-    const i = this.listeners[path].findIndex(l => l.id === id)
-    // TODO: this.listeners[path] should be an object instead of array to
-    // prevent possible race condition causing wrong listener to be removed
-    this.listeners[path].splice(i, 1)
-    if (this.listeners[path].length === 0) {
-      delete this.listeners[path]
+    const pathString = pathToString(path)
+    _.unset(this.listenerTree, `${pathString}.${listenersKey}.${id}`)
+    // if there are no other listeners at this path, clean up the tree
+    const otherListeners = _.get(this.listenerTree, `${pathString}.${listenersKey}`)
+    if (Object.keys(otherListeners).length === 0) {
+      // remove listenersKey at this path
+      _.unset(this.listenerTree, `${pathString}.${listenersKey}`)
     }
+    const hasChildren = !!Object.keys(_.get(this.listenerTree, pathString)).length
+    if (!hasChildren) {
+      // remove this path from the listenerTree
+      _.unset(this.listenerTree, pathString)
+    }
+  }
+
+  // get ancestor paths that have listeners (inclusive of path provided)
+  getAncestors(path) {
+    const pathString = pathToString(path)
+    const props = pathString.split('.')
+    const paths = props.map((prop, i) => props.slice(0, i + 1).join('.'))
+    return paths
+      .filter(p => !!_.get(this.listenerTree, `${p}.${listenersKey}`))
+      .map(p => {
+        const value = _.get(this.state, p)
+        return [p, JSON.stringify(value)]
+      })
+  }
+
+  // get the child paths that have listeners
+  getChildren(path, children = []) {
+    const pathString = pathToString(path)
+    const obj = !!pathString
+      ? _.get(this.listenerTree, pathString)
+      : this.listenerTree
+    if (!obj) return children
+    Object.keys(obj).forEach(child => {
+      if (child === listenersKey) return
+      const childPath = pathString ? `${pathString}.${child}` : child
+      const listeners = _.get(this.listenerTree, `${childPath}.${listenersKey}`)
+      if (listeners) {
+        const value = _.get(this.state, childPath)
+        children.push([childPath, JSON.stringify(value)])
+      }
+      this.getChildren(childPath, children)
+    })
+    return children
+  }
+
+  emitPath({ pathString, value, oldValue }) {
+    const listeners = _.get(this.listenerTree, `${pathString}.${listenersKey}`)
+    Object.keys(listeners).forEach(id => {
+      elapsed(`emit id ${id}`)
+      // setTimeout(() => {
+        listeners[id].fn({
+          path: pathString,
+          value,
+          oldValue
+        })
+      // }, 0)
+      elapsed(`emitted id ${id}`)
+    })
+  }
+
+  emitPaths(paths) {
+    elapsed(`emitPaths (${paths.length} paths)`)
+    paths.forEach(p => {
+      const [pathString, oldValueStr] = p
+      const oldValue = oldValueStr ? JSON.parse(oldValueStr) : oldValueStr
+      const value = _.get(this.state, pathString)
+      if (deepEqual(value, oldValue)) return
+      this.emitPath({
+        pathString, 
+        value,
+        oldValue
+      })
+    })
   }
 
   set(path, value) {
-    const notifications = []
-    // if we're setting a new state at the root
+    elapsed(`set ${path} = ${value}`)
+    const paths = [] // paths with listeners
     if (!!path && typeof path === 'object' && !Array.isArray(path)) {
+      // we're setting a new state at the root
       const val = path
-      Array.prototype.push.apply(notifications, this.notifyAllPathListeners(val))
+      const children = this.getChildren('')
+      Array.prototype.push.apply(paths, children)
       this.state = val
     } else {
-      Array.prototype.push.apply(notifications, this.notifyPathListeners(path, value))
-      Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
-      if (this.enableParentEvents) {
-        Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
-      }
+      // a path was provided
+      Array.prototype.push.apply(paths, this.getChildren(path))
+      Array.prototype.push.apply(paths, this.getAncestors(path))
       _.set(this.state, path, value)
     }
-    notifications.forEach(notification => {
-      notification.fn(notification.param)
-    })
+    this.emitPaths(paths)
+    elapsed(`done setting ${path} = ${value}`)
   }
 
   unset(path) {
-    const notifications = []
-    Array.prototype.push.apply(notifications, this.notifyPathListeners(path))
-    Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
-    if (this.enableParentEvents) {
-      Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
-    }
+    const paths = [
+      ...this.getChildren(path),
+      ...this.getAncestors(path)
+    ]
     _.unset(this.state, path)
-    notifications.forEach(notification => {
-      notification.fn(notification.param)
-    })
+    this.emitPaths(paths)
   }
 }
 
