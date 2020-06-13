@@ -77,7 +77,7 @@ Returns the value at the given path
 - `transformFn` (Function) transform the current value to a new value
 - `defaultValue` the default value to pass into the transform function if the value at the given path is undefined
   ```js
-  set('counter', n => n + 1, 0)
+  update('counter', n => n + 1, 0)
   ```
 
 ### Listener
