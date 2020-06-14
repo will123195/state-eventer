@@ -17,5 +17,9 @@
   "engines": {
     "node": ">=8"
   },
-  "engineStrict": true
+  "engineStrict": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/will123195/state-eventer.git"
+  },
 }

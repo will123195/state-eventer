@@ -57,10 +57,9 @@ state.update('counter', n => n + 1, 0) // 1
 
 Returns `Listener` (see below)
 
-#### `get( path )`
+#### `get( path, [defaultValue] )`
 - `path` (String|Array) the path of the desired value
-
-Returns the value at the given path
+- `defaultValue` (*) optional default value to return if the value at the specified path is undefined
 
 #### `set( path, value )`
 - `path` (String|Array) the path at which to set the value
@@ -70,12 +69,12 @@ Returns the value at the given path
 - `value` (Object) resets the root state to this value
 
 #### `unset( path )`
-- `path` (Object) removes this path from the state
+- `path` (String|Array) removes this path from the state
 
 #### `update( path, transformFn, [defaultValue] )`
 - `path` (String|Array) the path at which to set the value
 - `transformFn` (Function) transform the current value to a new value
-- `defaultValue` the default value to pass into the transform function if the value at the given path is undefined
+- `defaultValue` (*) optional default value to pass into the transform function if the value at the given path is undefined
   ```js
   update('counter', n => n + 1, 0)
   ```

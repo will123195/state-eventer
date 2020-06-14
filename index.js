@@ -4,10 +4,21 @@ const set = require('lodash.set')
 const unset = require('lodash.unset')
 const _ = { get, set, unset }
 
+function isObject (x) {
+  return Object.prototype.toString.call(x) === '[object Object]'
+}
+
 function pathToString(path) {
   if (typeof path === 'string') return path
   if (Array.isArray(path)) return path.join('.')
   throw new Error('`path` must be a string or array')
+}
+
+function shallowCopy(value) { // todo: consider using lodash.clone
+  let newValue = value
+  if (isObject(value)) newValue = { ...value }
+  if (Array.isArray(value)) newValue = [...value]
+  return newValue
 }
 
 class StateEventer {
@@ -144,11 +155,13 @@ class StateEventer {
   }
 
   // give each ancestor in the path a new reference
-  shallowCopyAncestors(paths = []) {
+  shallowCopyAncestors(path) {
+    const pathArr = pathToString(path).split('.')
+    const paths = pathArr.map((p, i) => pathArr.slice(0, i + 1).join('.'))
     paths.forEach(path => {
-      const obj = _.get(this.state, path)
-      const value = Array.isArray(obj) ? [...obj] : {...obj}
-      _.set(this.state, path, value)
+      let value = _.get(this.state, path)
+      if (value === undefined) return
+      _.set(this.state, path, shallowCopy(value))
     })
   }
 
@@ -168,11 +181,9 @@ class StateEventer {
     } else {
       Array.prototype.push.apply(notifications, this.notifyPathListeners(path, value))
       Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
-      const ancestorNotifications = this.notifyParentPathListeners(path, value)
-      Array.prototype.push.apply(notifications, ancestorNotifications)
+      Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
       _.set(this.state, path, value)
-      const ancestorPaths = ancestorNotifications.map(a => a.param.path)
-      this.shallowCopyAncestors(ancestorPaths)
+      this.shallowCopyAncestors(path)
     }
     notifications.forEach(notification => {
       notification.fn(notification.param)
@@ -183,11 +194,9 @@ class StateEventer {
     const notifications = []
     Array.prototype.push.apply(notifications, this.notifyPathListeners(path))
     Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
-    const ancestorNotifications = this.notifyParentPathListeners(path)
-    Array.prototype.push.apply(notifications, ancestorNotifications)
+    Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
     _.unset(this.state, path)
-    const ancestorPaths = ancestorNotifications.map(a => a.param.path)
-    this.shallowCopyAncestors(ancestorPaths)
+    this.shallowCopyAncestors(path)
     notifications.forEach(notification => {
       notification.fn(notification.param)
     })
