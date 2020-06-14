@@ -183,7 +183,7 @@ class StateEventer {
       Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
       Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
       _.set(this.state, path, value)
-      this.shallowCopyAncestors(path)
+      if (notifications.length) this.shallowCopyAncestors(path)
     }
     notifications.forEach(notification => {
       notification.fn(notification.param)
@@ -196,7 +196,7 @@ class StateEventer {
     Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
     Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
     _.unset(this.state, path)
-    this.shallowCopyAncestors(path)
+    if (notifications.length) this.shallowCopyAncestors(path)
     notifications.forEach(notification => {
       notification.fn(notification.param)
     })
