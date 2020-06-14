@@ -2,7 +2,8 @@ const deepEqual = require('fast-deep-equal')
 const get = require('lodash.get')
 const set = require('lodash.set')
 const unset = require('lodash.unset')
-const _ = { get, set, unset }
+const cloneDeep = require('lodash.clonedeep')
+const _ = { get, set, unset, cloneDeep }
 
 function isObject (x) {
   return Object.prototype.toString.call(x) === '[object Object]'
@@ -171,7 +172,8 @@ class StateEventer {
     this.set(path, newValue)
   }
 
-  set(path, value) {
+  set(path, val) {
+    const value = cloneDeep(val)
     const notifications = []
     // if we're setting a new state at the root
     if (!!path && typeof path === 'object' && !Array.isArray(path)) {

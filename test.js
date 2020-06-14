@@ -73,7 +73,7 @@ assert.equal(Object.keys(state.listeners).length, 3)
 // can specify default values
 assert.equal(state.get('not-found', 12345), 12345)
 
-// mutations using unset() give ancestors new reference
+// changes using unset() give ancestors new reference
 state.set('a.b.c', 3)
 const b1 = state.get('a.b')
 state.unset('a.b.c')
@@ -86,5 +86,15 @@ assert(b2 === b3)
 // transform function
 state.update('a.b.c', n => n + 1, 5)
 assert.equal(state.get('a.b.c'), 6)
+
+// setting a mutated object still fires the event
+state.set('e', { e1: 1 })
+let eCount = 0
+state.on('e', () => eCount += 1)
+const e = state.get('e')
+e.e2 = 2
+state.set('e', e)
+assert.equal(eCount, 1)
+
 
 console.log('PASS')
