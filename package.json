@@ -1,6 +1,6 @@
 {
   "name": "state-eventer",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "description": "Get/set state and listen for changes",
   "main": "index.js",
   "scripts": {
