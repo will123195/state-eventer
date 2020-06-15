@@ -27,6 +27,7 @@ class StateEventer {
   constructor() {
     this.state = {}
     this.listeners = {}
+    this.snapshot = {}
   }
 
   get(path, defaultValue) {
@@ -84,16 +85,16 @@ class StateEventer {
     const pathArray = pathString.split('.').slice(0, -1)
     pathString = pathArray.join('.')
     if (!pathString) return []
-    Object.keys(this.listeners).forEach(listenerPath => {
+    const listenerPaths = Object.keys(this.listeners)
+    if (!listenerPaths.length) return
+    const futureState = cloneDeep(this.snapshot)
+    const action = (value !== undefined) ? 'set' : 'unset'
+    _[action](futureState, path, value)
+    listenerPaths.forEach(listenerPath => {
       pathArray.some((leaf, i) => {
         const ancestorPath = pathArray.slice(0, i + 1).join('.')
         if (listenerPath !== ancestorPath) return
-        const currentValue = _.get(this.state, ancestorPath)
-        const oldValue = currentValue ? JSON.parse(JSON.stringify(currentValue)) : currentValue
-        // TODO make this faster
-        const futureState = JSON.parse(JSON.stringify(this.state))
-        const action = (value !== undefined) ? 'set' : 'unset'
-        _[action](futureState, path, value)
+        const oldValue = _.get(this.snapshot, ancestorPath)
         const newValue = _.get(futureState, listenerPath)
         if (deepEqual(newValue, oldValue)) return
         this.listeners[ancestorPath].forEach(listener => {
@@ -172,20 +173,23 @@ class StateEventer {
     this.set(path, newValue)
   }
 
-  set(path, val) {
-    const value = cloneDeep(val)
+  set(path, value) {
     const notifications = []
     // if we're setting a new state at the root
     if (!!path && typeof path === 'object' && !Array.isArray(path)) {
       const val = path
       Array.prototype.push.apply(notifications, this.notifyAllPathListeners(val))
       this.state = val
+      this.snapshot = cloneDeep(this.state)
     } else {
+      const originalValue = _.get(this.snapshot, path)
+      if (value && deepEqual(value, originalValue)) return
       Array.prototype.push.apply(notifications, this.notifyPathListeners(path, value))
       Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path, value))
       Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path, value))
       _.set(this.state, path, value)
-      if (notifications.length) this.shallowCopyAncestors(path)
+      this.snapshot = cloneDeep(this.state)
+      this.shallowCopyAncestors(path)
     }
     notifications.forEach(notification => {
       notification.fn(notification.param)
@@ -193,12 +197,15 @@ class StateEventer {
   }
 
   unset(path) {
+    const originalValue = _.get(this.snapshot, path)
+    if (originalValue === undefined) return
     const notifications = []
     Array.prototype.push.apply(notifications, this.notifyPathListeners(path))
     Array.prototype.push.apply(notifications, this.notifyChildPathListeners(path))
     Array.prototype.push.apply(notifications, this.notifyParentPathListeners(path))
     _.unset(this.state, path)
-    if (notifications.length) this.shallowCopyAncestors(path)
+    this.snapshot = cloneDeep(this.state)
+    this.shallowCopyAncestors(path)
     notifications.forEach(notification => {
       notification.fn(notification.param)
     })

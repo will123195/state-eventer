@@ -88,13 +88,13 @@ state.update('a.b.c', n => n + 1, 5)
 assert.equal(state.get('a.b.c'), 6)
 
 // setting a mutated object still fires the event
-state.set('e', { e1: 1 })
 let eCount = 0
 state.on('e', () => eCount += 1)
-const e = state.get('e')
-e.e2 = 2
-state.set('e', e)
+state.set('e', { f: { g: 1 } })
 assert.equal(eCount, 1)
-
+const e = state.get('e')
+e.f.g = 2
+state.set('e.f', e.f)
+assert.equal(eCount, 2)
 
 console.log('PASS')
